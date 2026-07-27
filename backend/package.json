@@ -1,0 +1,23 @@
+{
+  "name": "universal-notification-hub",
+  "version": "0.1.0",
+  "description": "Universal Notification Hub — PWA + Web Push агрегатор уведомлений",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "migrate": "node src/migrate.js",
+    "generate-vapid": "node src/scripts/generate-vapid.js"
+  },
+  "dependencies": {
+    "sql.js": "^1.11.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.0",
+    "express": "^4.18.2",
+    "multer": "^1.4.5-lts.1",
+    "path": "^0.12.7",
+    "sql.js": "^1.11.0",
+    "uuid": "^9.0.0",
+    "web-push": "^3.6.7"
+  }
+}
