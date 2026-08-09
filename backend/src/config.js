@@ -7,6 +7,17 @@ const config = {
   port: parseInt(process.env.PORT, 10) || 3000,
   nodeEnv: process.env.NODE_ENV || 'development',
   baseUrl: process.env.BASE_URL || 'http://localhost:3000',
+  corsOrigins: process.env.CORS_ORIGINS
+    ? process.env.CORS_ORIGINS.split(',').map((o) => o.trim()).filter(Boolean)
+    : null,
+  admin: {
+    username: process.env.ADMIN_USERNAME || 'admin',
+    password: process.env.ADMIN_PASSWORD || '',
+  },
+  jwt: {
+    secret: process.env.JWT_SECRET || '',
+    expiresIn: process.env.JWT_EXPIRES_IN || '8h',
+  },
   db: {
     client: process.env.DB_CLIENT || 'sqlite3',
     sqliteFilename: path.resolve(rootDir, process.env.DB_FILENAME || './data/hub.sqlite'),

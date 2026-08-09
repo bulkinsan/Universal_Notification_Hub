@@ -5,11 +5,19 @@ const config = require('./config');
 
 let database = null;
 let filename = null;
+let inMemory = false;
 
-async function initDb() {
+async function initDb(options = {}) {
   const SQL = await initSqlJs();
 
-  filename = path.resolve(config.db.sqliteFilename);
+  inMemory = Boolean(options.inMemory);
+  filename = options.filename ? path.resolve(options.filename) : null;
+
+  if (inMemory || !filename) {
+    database = new SQL.Database();
+    return database;
+  }
+
   const dir = path.dirname(filename);
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true });
@@ -26,7 +34,7 @@ async function initDb() {
 }
 
 function flush() {
-  if (!database || !filename) return;
+  if (!database || !filename || inMemory) return;
   const data = database.export();
   fs.writeFileSync(filename, Buffer.from(data));
 }
@@ -34,6 +42,14 @@ function flush() {
 function getDb() {
   if (!database) throw new Error('Database not initialized');
   return database;
+}
+
+function closeDb() {
+  if (database) {
+    flush();
+    database.close();
+    database = null;
+  }
 }
 
 function queryAll(sql, params = []) {
@@ -58,4 +74,4 @@ function run(sql, params = []) {
   return result;
 }
 
-module.exports = { initDb, getDb, queryAll, queryOne, run };
+module.exports = { initDb, getDb, closeDb, queryAll, queryOne, run };

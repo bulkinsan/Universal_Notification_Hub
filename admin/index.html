@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#1a73e8">
+  <title>Notification Hub — Admin</title>
+  <link rel="stylesheet" href="/admin/style.css">
+</head>
+<body>
+  <div id="login-view" class="login-wrap hidden">
+    <form id="login-form" class="login-card">
+      <h1>Notification Hub</h1>
+      <p class="muted">Admin panel</p>
+      <label>Username
+        <input type="text" id="login-username" autocomplete="username" required>
+      </label>
+      <label>Password
+        <input type="password" id="login-password" autocomplete="current-password" required>
+      </label>
+      <button type="submit" class="btn btn-primary">Sign in</button>
+      <p id="login-error" class="error hidden"></p>
+    </form>
+  </div>
+
+  <div id="app-view" class="hidden">
+    <header class="header">
+      <div>
+        <h1>Notification Hub</h1>
+        <div class="subtitle" id="admin-name"></div>
+      </div>
+      <nav class="tabs">
+        <button class="tab" data-view="overview">Overview</button>
+        <button class="tab" data-view="sources">Sources</button>
+        <button class="tab" data-view="notifications">Notifications</button>
+      </nav>
+      <button id="logout-btn" class="btn btn-ghost">Sign out</button>
+    </header>
+
+    <main class="container">
+      <section id="view-overview" class="view"></section>
+      <section id="view-sources" class="view hidden"></section>
+      <section id="view-notifications" class="view hidden"></section>
+    </main>
+  </div>
+
+  <div id="modal" class="modal-overlay hidden">
+    <div class="modal" id="modal-body"></div>
+  </div>
+
+  <script src="/admin/app.js"></script>
+</body>
+</html>

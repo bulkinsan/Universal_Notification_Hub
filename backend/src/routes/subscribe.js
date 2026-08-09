@@ -1,16 +1,19 @@
 const express = require('express');
 const { v4: uuidv4 } = require('uuid');
 const { queryAll, queryOne, run } = require('../db');
+const { validateSubscribe, validateUnsubscribe, validateId } = require('../services/validate');
+const { subscribeLimiter } = require('../middleware/rateLimit');
 
 const router = express.Router();
 
-router.post('/', async (req, res) => {
+router.post('/', subscribeLimiter, async (req, res) => {
   try {
-    const { source_id, device_type, push_subscription, user_agent } = req.body;
-
-    if (!source_id || !device_type) {
-      return res.status(400).json({ error: 'source_id and device_type are required' });
+    const check = validateSubscribe(req.body);
+    if (!check.ok) {
+      return res.status(400).json({ error: check.errors.join('; ') });
     }
+
+    const { source_id, device_type, push_subscription, user_agent } = req.body;
 
     const source = queryOne('SELECT id FROM traffic_sources WHERE id = ? AND is_active = 1', [source_id]);
     if (!source) {
@@ -56,11 +59,12 @@ router.post('/', async (req, res) => {
 
 router.delete('/', async (req, res) => {
   try {
-    const { user_id, source_id } = req.body;
-
-    if (!user_id || !source_id) {
-      return res.status(400).json({ error: 'user_id and source_id are required' });
+    const check = validateUnsubscribe(req.body);
+    if (!check.ok) {
+      return res.status(400).json({ error: check.errors.join('; ') });
     }
+
+    const { user_id, source_id } = req.body;
 
     run(
       'UPDATE user_subscriptions SET is_active = 0 WHERE user_id = ? AND source_id = ?',
@@ -77,8 +81,8 @@ router.delete('/', async (req, res) => {
 router.get('/', async (req, res) => {
   try {
     const { user_id } = req.query;
-    if (!user_id) {
-      return res.status(400).json({ error: 'user_id query param is required' });
+    if (!user_id || !validateId(user_id)) {
+      return res.status(400).json({ error: 'valid user_id query param is required' });
     }
 
     const subs = queryAll(

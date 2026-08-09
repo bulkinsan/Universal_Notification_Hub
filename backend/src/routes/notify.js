@@ -2,19 +2,22 @@ const express = require('express');
 const { v4: uuidv4 } = require('uuid');
 const { queryAll, queryOne, run } = require('../db');
 const { requireSourceAuth } = require('../middleware/auth');
+const { notifyLimiter } = require('../middleware/rateLimit');
+const { validateNotify } = require('../services/validate');
 const delivery = require('../services/delivery');
 const config = require('../config');
 
 const router = express.Router();
 
-router.post('/', requireSourceAuth, async (req, res) => {
+router.post('/', requireSourceAuth, notifyLimiter, async (req, res) => {
   try {
+    const check = validateNotify(req.body);
+    if (!check.ok) {
+      return res.status(400).json({ error: check.errors.join('; ') });
+    }
+
     const { title, body, data } = req.body;
     const source = req.source;
-
-    if (!title) {
-      return res.status(400).json({ error: 'title is required' });
-    }
 
     const notificationId = uuidv4();
     const iconUrl = source.logo_path

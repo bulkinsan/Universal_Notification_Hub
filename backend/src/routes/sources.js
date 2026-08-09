@@ -1,28 +1,23 @@
 const express = require('express');
-const crypto = require('crypto');
 const { v4: uuidv4 } = require('uuid');
 const multer = require('multer');
 const { queryAll, queryOne, run } = require('../db');
 const { hashApiKey, requireSourceAuth } = require('../middleware/auth');
+const { generateApiKey } = require('../utils/security');
 const logoService = require('../services/logo');
+const { validateCreateSource, validateSourceInput, validateId } = require('../services/validate');
 
 const router = express.Router();
 const upload = multer({ storage: multer.memoryStorage() });
 
-function generateApiKey() {
-  return 'sk_' + crypto.randomBytes(32).toString('hex');
-}
-
 router.post('/', async (req, res) => {
   try {
-    const { name, domain, description, website_url } = req.body;
+    const check = validateCreateSource(req.body);
+    if (!check.ok) {
+      return res.status(400).json({ error: check.errors.join('; ') });
+    }
 
-    if (!name || !domain) {
-      return res.status(400).json({ error: 'name and domain are required' });
-    }
-    if (name.length > 100) {
-      return res.status(400).json({ error: 'name must be 100 characters or less' });
-    }
+    const { name, domain, description, website_url } = req.body;
 
     const existing = queryOne('SELECT id FROM traffic_sources WHERE domain = ?', [domain]);
     if (existing) {
@@ -66,6 +61,10 @@ router.get('/', async (req, res) => {
 
 router.get('/:id', async (req, res) => {
   try {
+    if (!validateId(req.params.id)) {
+      return res.status(400).json({ error: 'Invalid source id' });
+    }
+
     const source = queryOne(
       'SELECT id, name, domain, logo_path, description, website_url, is_active, created_at FROM traffic_sources WHERE id = ?',
       [req.params.id]
@@ -84,15 +83,21 @@ router.get('/:id', async (req, res) => {
 
 router.patch('/:id', requireSourceAuth, async (req, res) => {
   try {
+    if (!validateId(req.params.id)) {
+      return res.status(400).json({ error: 'Invalid source id' });
+    }
+
+    const check = validateSourceInput(req.body);
+    if (!check.ok) {
+      return res.status(400).json({ error: check.errors.join('; ') });
+    }
+
     const allowed = ['name', 'description', 'website_url'];
     const sets = [];
     const vals = [];
 
     for (const key of allowed) {
       if (req.body[key] !== undefined) {
-        if (key === 'name' && req.body[key].length > 100) {
-          return res.status(400).json({ error: 'name must be 100 characters or less' });
-        }
         sets.push(`${key} = ?`);
         vals.push(req.body[key]);
       }
@@ -119,6 +124,9 @@ router.patch('/:id', requireSourceAuth, async (req, res) => {
 
 router.post('/:id/logo', requireSourceAuth, upload.single('logo'), async (req, res) => {
   try {
+    if (!validateId(req.params.id)) {
+      return res.status(400).json({ error: 'Invalid source id' });
+    }
     if (!req.file) {
       return res.status(400).json({ error: 'No file uploaded' });
     }
@@ -142,6 +150,9 @@ router.post('/:id/logo', requireSourceAuth, upload.single('logo'), async (req, r
     res.json({ logo_path: logoPath });
   } catch (err) {
     console.error('POST /api/v1/sources/:id/logo error:', err);
+    if (err instanceof logoService.LogoValidationError) {
+      return res.status(400).json({ error: err.message });
+    }
     res.status(500).json({ error: err.message || 'Internal server error' });
   }
 });
