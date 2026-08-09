@@ -32,3 +32,171 @@
 
    /admin (vanilla JS) — админский веб-фронт (JWT в localStorage)
 ```
+
+---
+
+## Документация API
+
+Базовый путь: `/api/v1`. Ответы — JSON. Ошибки: `{ "error": "описание" }`.
+
+### Аутентификация
+
+Два независимых механизма:
+
+| Механизм | Где используется | Передача |
+|---|---|---|
+| **API-ключ отправителя** | `/notify`, `PATCH /sources/:id`, `/sources/:id/logo` | заголовок `X-API-Key: sk_...` |
+| **JWT админа** | все `/admin/*` | заголовок `Authorization: Bearer <token>` |
+
+API-ключ (`sk_...`) выдаётся один раз при создании источника или при регенерации через админку. В базе хранится только его SHA-256 хеш. JWT получается через `POST /admin/login`.
+
+### Источники (публичные)
+
+| Метод | Путь | Auth | Описание |
+|---|---|---|---|
+| `POST` | `/api/v1/sources` | нет | Создать источник → возвращает `api_key` |
+| `GET` | `/api/v1/sources` | нет | Список активных источников |
+| `GET` | `/api/v1/sources/:id` | нет | Детали источника |
+| `PATCH` | `/api/v1/sources/:id` | API Key | Обновить `name`/`description`/`website_url` |
+| `POST` | `/api/v1/sources/:id/logo` | API Key | Загрузить логотип (multipart, поле `logo`) |
+
+**Создание источника:**
+
+```bash
+POST /api/v1/sources
+Content-Type: application/json
+
+{ "name": "Bank", "domain": "bank.example.com", "description": "...", "website_url": "https://..." }
+```
+
+Ответ `201`:
+```json
+{
+  "id": "uuid",
+  "name": "Bank",
+  "domain": "bank.example.com",
+  "api_key": "sk_...",
+  "description": "...",
+  "website_url": "https://..."
+}
+```
+
+Ошибки: `400` — невалидные поля, `409` — домен уже существует. `domain` — уникальный идентификатор источника.
+
+**Логотип:** `image/jpeg`, `image/png`, `image/webp`, до `MAX_FILE_SIZE` байт (по умолчанию 1 МБ). Содержимое проверяется по magic bytes, не только по MIME. Ответ: `{ "logo_path": "logos/<id>.png" }` (отдаётся с `/uploads/...`).
+
+### Подписки
+
+| Метод | Путь | Описание |
+|---|---|---|
+| `POST` | `/api/v1/subscribe` | Подписать пользователя на источник |
+| `DELETE` | `/api/v1/subscribe` | Отписать пользователя |
+| `GET` | `/api/v1/subscribe?user_id=<uuid>` | Активные подписки пользователя |
+
+**Подписка:**
+```json
+{
+  "user_id": "uuid",            // опционально, иначе генерируется сервером
+  "source_id": "uuid",
+  "device_type": "pwa",         // pwa | native_ios
+  "push_subscription": { ... }  // обязательно для pwa
+}
+```
+Ответ: `{ "user_id": "...", "source_id": "...", "status": "subscribed" }`.
+
+**Отписка:** `DELETE /api/v1/subscribe` с телом `{ "user_id", "source_id" }`.
+
+### Отправка уведомлений
+
+```bash
+POST /api/v1/notify
+X-API-Key: sk_...
+Content-Type: application/json
+
+{
+  "title": "Новый перевод",
+  "body": "500 руб от Ивана",
+  "data": { "deep_link": "https://bank.example.com/transfer/123" }
+}
+```
+
+Ответ:
+```json
+{
+  "notification_id": "uuid",
+  "status": "sent",     // sent | partial | failed
+  "sent": 5,
+  "failed": 0,
+  "total": 5
+}
+```
+
+Один `notify` фан-аутит по всем активным подписчикам источника, доставляя каждому подходящим каналом (Web Push сейчас, WebSocket — планируется). Если push-подписка истекла (HTTP 404/410), она автоматически деактивируется.
+
+### История уведомлений (для клиентов)
+
+```
+GET /api/v1/notifications?user_id=<uuid>&limit=50&offset=0
+```
+Уведомления, доставленные пользователю (подтяжка пропущенного после оффлайна). `limit` ≤ 200. Сортировка по дате, от новых к старым.
+
+### Служебные
+
+| Метод | Путь | Описание |
+|---|---|---|
+| `GET` | `/api/v1/health` | `{ "status": "ok", "timestamp": "..." }` |
+| `GET` | `/api/v1/vapid-public-key` | VAPID-ключ для PWA: `{ "publicKey": "..." }` |
+
+### Админ-эндпоинты (JWT)
+
+**Аутентификация:**
+
+| Метод | Путь | Описание |
+|---|---|---|
+| `POST` | `/api/v1/admin/login` | `{ "username", "password" }` → `{ "token", "username" }` |
+| `GET` | `/api/v1/admin/me` | Профиль: `{ "username", "role": "admin" }` |
+
+Логин лимитирован (10 попыток / 15 минут).
+
+**Источники:**
+
+| Метод | Путь | Описание |
+|---|---|---|
+| `GET` | `/api/v1/admin/sources` | Все источники + `subscribers_count` |
+| `POST` | `/api/v1/admin/sources` | Создать источник |
+| `GET` | `/api/v1/admin/sources/:id` | Детали + `subscribers_count` |
+| `PATCH` | `/api/v1/admin/sources/:id` | Обновить поля |
+| `POST` | `/api/v1/admin/sources/:id/logo` | Загрузить логотип |
+| `POST` | `/api/v1/admin/sources/:id/activate` | Включить источник |
+| `POST` | `/api/v1/admin/sources/:id/deactivate` | Выключить (скрыть из публичного списка) |
+| `POST` | `/api/v1/admin/sources/:id/api-key` | **Регенерировать API-ключ** (старый сразу инвалидируется) |
+| `GET` | `/api/v1/admin/sources/:id/stats` | Подписчики, уведомления, sent/failed |
+
+**Статистика и история:**
+
+| Метод | Путь | Описание |
+|---|---|---|
+| `GET` | `/api/v1/admin/stats` | Сводка: источники, пользователи, подписки, уведомления, доставки |
+| `GET` | `/api/v1/admin/notifications?source_id=&status=&limit=&offset=` | История уведомлений (фильтры + пагинация) |
+| `GET` | `/api/v1/admin/notifications/:id` | Уведомление + список доставок (пользователь, устройство, статус, ошибка) |
+
+### Коды ошибок
+
+| Код | Значение |
+|---|---|
+| `400` | Невалидный запрос (нет обязательных полей, неверный тип) |
+| `401` | Нет/неверный токен, неверные креды |
+| `403` | Неверный или неактивный API-ключ, недостаточно прав |
+| `404` | Ресурс не найден |
+| `409` | Конфликт (домен источника уже существует) |
+| `429` | Превышен rate-limit |
+
+Rate-limits: `/admin/login` — 10/15 мин, `/notify` — 60/мин, `/subscribe` — 120/мин.
+
+### WebSocket (планируется)
+
+Канал доставки для нативных iOS/Android клиентов. Черновой протокол:
+- подключение: `ws://<host>/ws`
+- клиент → сервер: `{ "type": "auth", "user_id": "uuid" }` → сервер: `{ "type": "auth_ok" }`
+- сервер → клиент: `{ "type": "notification", "notification_id", "title", "body", "icon_url", "data", "created_at" }`
+- keepalive: ping/pong.
