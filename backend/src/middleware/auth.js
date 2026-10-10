@@ -25,4 +25,11 @@ async function requireSourceAuth(req, res, next) {
   next();
 }
 
-module.exports = { requireSourceAuth, hashApiKey };
+function requireOwnSource(req, res, next) {
+  if (!req.source || req.source.id !== req.params.id) {
+    return res.status(403).json({ error: 'API key does not belong to this source' });
+  }
+  next();
+}
+
+module.exports = { requireSourceAuth, requireOwnSource, hashApiKey };

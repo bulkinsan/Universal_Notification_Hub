@@ -20,7 +20,11 @@ async function api(path, opts = {}) {
     headers: { 'Content-Type': 'application/json', ...opts.headers },
     ...opts,
   });
-  return res.json();
+  const body = await res.json().catch(() => null);
+  if (!res.ok) {
+    throw new Error((body && body.error) || `Request failed (${res.status})`);
+  }
+  return body;
 }
 
 let swReg = null;
@@ -38,14 +42,17 @@ async function init() {
 }
 
 async function loadSources() {
+  const list = document.getElementById('sources-list');
+  const loading = document.getElementById('loading');
+  if (loading) loading.remove();
+
   try {
     const sources = await api('/sources');
     const subs = await api('/subscribe?user_id=' + userId);
     const subMap = {};
-    subs.forEach((s) => (subMap[s.id] = true));
+    (Array.isArray(subs) ? subs : []).forEach((s) => (subMap[s.id] = true));
 
-    const list = document.getElementById('sources-list');
-    if (sources.length === 0) {
+    if (!Array.isArray(sources) || sources.length === 0) {
       list.innerHTML = '<p class=muted>No sources available yet.</p>';
       return;
     }
@@ -77,6 +84,7 @@ async function loadSources() {
     );
   } catch (err) {
     console.error('Failed to load sources:', err);
+    list.innerHTML = '<p class=error>Failed to load sources: ' + esc(err.message) + '</p>';
   }
 }
 

@@ -11,9 +11,11 @@ async function initDb(options = {}) {
   const SQL = await initSqlJs();
 
   inMemory = Boolean(options.inMemory);
-  filename = options.filename ? path.resolve(options.filename) : null;
+  filename = inMemory
+    ? null
+    : path.resolve(options.filename || config.db.sqliteFilename);
 
-  if (inMemory || !filename) {
+  if (inMemory) {
     database = new SQL.Database();
     return database;
   }

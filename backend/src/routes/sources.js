@@ -2,7 +2,7 @@ const express = require('express');
 const { v4: uuidv4 } = require('uuid');
 const multer = require('multer');
 const { queryAll, queryOne, run } = require('../db');
-const { hashApiKey, requireSourceAuth } = require('../middleware/auth');
+const { hashApiKey, requireSourceAuth, requireOwnSource } = require('../middleware/auth');
 const { generateApiKey } = require('../utils/security');
 const logoService = require('../services/logo');
 const { validateCreateSource, validateSourceInput, validateId } = require('../services/validate');
@@ -81,7 +81,7 @@ router.get('/:id', async (req, res) => {
   }
 });
 
-router.patch('/:id', requireSourceAuth, async (req, res) => {
+router.patch('/:id', requireSourceAuth, requireOwnSource, async (req, res) => {
   try {
     if (!validateId(req.params.id)) {
       return res.status(400).json({ error: 'Invalid source id' });
@@ -122,7 +122,7 @@ router.patch('/:id', requireSourceAuth, async (req, res) => {
   }
 });
 
-router.post('/:id/logo', requireSourceAuth, upload.single('logo'), async (req, res) => {
+router.post('/:id/logo', requireSourceAuth, requireOwnSource, upload.single('logo'), async (req, res) => {
   try {
     if (!validateId(req.params.id)) {
       return res.status(400).json({ error: 'Invalid source id' });

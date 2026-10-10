@@ -1,4 +1,3 @@
-const CACHE_NAME = 'hub-pwa-v1';
 const PWA_BASE = '/pwa/';
 
 self.addEventListener('install', () => self.skipWaiting());

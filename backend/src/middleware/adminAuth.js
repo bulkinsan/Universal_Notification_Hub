@@ -4,6 +4,10 @@ const { timingSafeEqualString } = require('../utils/security');
 
 function getJwtSecret() {
   if (config.jwt.secret) return config.jwt.secret;
+  if (config.nodeEnv === 'production') {
+    console.error('[security] JWT_SECRET is required in production. Set JWT_SECRET in .env.');
+    process.exit(1);
+  }
   console.warn('[security] JWT_SECRET is not set — using ephemeral secret (sessions reset on restart). Set JWT_SECRET in .env.');
   return 'dev-ephemeral-secret-' + process.pid;
 }
